@@ -1,0 +1,41 @@
+name: Creator360 Deploy to Azure
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/creator360:latest .
+          docker push ${{ secrets.ACR_LOGIN_SERVER }}/creator360:latest
+
+  deploy-to-azure:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Web App
+        run: |
+          az webapp config container set \
+            --name creator360-unifiedsaas-web \
+            --resource-group Creator360-UnifiedSaaS-RG \
+            --docker-custom-image-name ${{ secrets.ACR_LOGIN_SERVER }}/creator360:latest \
+            --docker-registry-server-url https://${{ secrets.ACR_LOGIN_SERVER }}
